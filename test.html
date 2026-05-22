@@ -1,0 +1,585 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康管理システム（LINE風）</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel (JSXをブラウザで解釈するため) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* カスタムスクロールバー（スタッフ画面用など） */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* アプリライクにするため全体スクロールはオフ */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Icon Components (Lucide icons as simple SVGs for standalone HTML) ---
+        const IconUser = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        const IconMessageCircle = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>;
+        const IconSend = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+        const IconPlus = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+        const IconBell = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+        const IconMic = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>;
+        const IconX = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const IconHeartPulse = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg>;
+        const IconStethoscope = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>;
+        const IconUsers = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const IconMessageSquare = ({ size = 24, className = "" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+
+
+        function App() {
+            // ==========================================
+            // システム全体の状態管理 (State)
+            // ==========================================
+            const [view, setView] = useState('elderly'); // 'elderly' | 'staff'
+            const [toast, setToast] = useState('');
+
+            // 利用者データ
+            const [users, setUsers] = useState([
+                { id: 'u1', name: '山田 太郎' },
+                { id: 'u2', name: '鈴木 花子' }
+            ]);
+
+            // デフォルトの質問テンプレート
+            const defaultQuestions = [
+                { id: 'q1', text: '今日の体調はどうですか？', options: [
+                { label: '良い', icon: '😊', value: 'good' }, 
+                { label: '普通', icon: '😐', value: 'normal' }, 
+                { label: '悪い', icon: '🤒', value: 'bad', isAlert: true }
+                ]},
+                { id: 'q2', text: 'お薬は飲みましたか？', options: [
+                { label: '飲んだ', icon: '💊', value: 'yes' }, 
+                { label: 'まだ', icon: '⏳', value: 'no' }
+                ]},
+                { id: 'q3', text: '今の気分はどうですか？', options: [
+                { label: '元気', icon: '☀️', value: 'happy' }, 
+                { label: '憂鬱', icon: '🌧️', value: 'sad', isAlert: true }
+                ]},
+                { id: 'q4', text: 'ご飯は食べましたか？', options: [
+                { label: '全部食べた', icon: '🍚', value: 'all' }, 
+                { label: '少し食べた', icon: '🍙', value: 'some' }, 
+                { label: '食べてない', icon: '❌', value: 'none', isAlert: true }
+                ]},
+            ];
+            const [questions, setQuestions] = useState(defaultQuestions);
+
+            // メッセージ履歴
+            const [messages, setMessages] = useState({
+                'u1': [
+                { id: 'm1', sender: 'system', text: 'おはようございます！今日の体調はどうですか？', timestamp: new Date(Date.now() - 1000 * 60 * 5), options: defaultQuestions[0].options }
+                ],
+                'u2': []
+            });
+
+            // アラート管理
+            const [alerts, setAlerts] = useState([]);
+
+            // 高齢者画面用State
+            const [currentElderlyId, setCurrentElderlyId] = useState('u1');
+            const [inputText, setInputText] = useState('');
+            const [isRecording, setIsRecording] = useState(false);
+            const messagesEndRef = useRef(null);
+
+            // スタッフ画面用State
+            const [selectedStaffUser, setSelectedStaffUser] = useState('u1');
+            const [showAddUser, setShowAddUser] = useState(false);
+            const [newUserName, setNewUserName] = useState('');
+            const [showAddQuestion, setShowAddQuestion] = useState(false);
+            const [newQuestionText, setNewQuestionText] = useState('');
+
+            // ==========================================
+            // 共通・ユーティリティ関数
+            // ==========================================
+            const showToastMsg = (msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(''), 3000);
+            };
+
+            const formatTime = (date) => {
+                return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            };
+
+            const addAlert = (userId, message) => {
+                const newAlert = {
+                id: Date.now().toString(),
+                userId,
+                message,
+                timestamp: new Date(),
+                isRead: false
+                };
+                setAlerts(prev => [newAlert, ...prev]);
+            };
+
+            // ==========================================
+            // アクション (スタッフ側)
+            // ==========================================
+            const sendQuestion = (userId, question) => {
+                const newMessage = {
+                id: Date.now().toString(),
+                sender: 'system',
+                text: question.text,
+                options: question.options,
+                timestamp: new Date()
+                };
+
+                setMessages(prev => {
+                const newMsgs = { ...prev };
+                if (userId === 'all') {
+                    users.forEach(u => {
+                    newMsgs[u.id] = [...(newMsgs[u.id] || []), { ...newMessage, id: newMessage.id + u.id }];
+                    });
+                    showToastMsg('全員に質問を送信しました');
+                } else {
+                    newMsgs[userId] = [...(newMsgs[userId] || []), newMessage];
+                    showToastMsg(`${users.find(u => u.id === userId)?.name}さんに質問を送信しました`);
+                }
+                return newMsgs;
+                });
+            };
+
+            const simulateNoReplyAlert = () => {
+                addAlert(selectedStaffUser, '一定時間返信がありません。(自動検知)');
+                showToastMsg('未読アラートのテストを発行しました');
+            };
+
+            const handleAddUserSubmit = () => {
+                if (!newUserName.trim()) return;
+                const newId = 'u' + Date.now();
+                setUsers([...users, { id: newId, name: newUserName }]);
+                setMessages({ ...messages, [newId]: [] });
+                setNewUserName('');
+                setShowAddUser(false);
+                showToastMsg('新しい利用者を登録しました');
+            };
+
+            const handleAddQuestionSubmit = () => {
+                if (!newQuestionText.trim()) return;
+                const newQ = {
+                id: 'q' + Date.now(),
+                text: newQuestionText,
+                options: [
+                    { label: 'はい', icon: '⭕', value: 'yes' },
+                    { label: 'いいえ', icon: '❌', value: 'no' }
+                ]
+                };
+                setQuestions([...questions, newQ]);
+                setNewQuestionText('');
+                setShowAddQuestion(false);
+                showToastMsg('新しい質問を追加しました');
+            };
+
+            // ==========================================
+            // アクション (高齢者側)
+            // ==========================================
+            const handleReplyOption = (messageId, option) => {
+                setMessages(prev => {
+                const userMessages = [...(prev[currentElderlyId] || [])];
+                const msgIndex = userMessages.findIndex(m => m.id === messageId);
+                if (msgIndex > -1) {
+                    userMessages[msgIndex] = { ...userMessages[msgIndex], replied: true };
+                }
+                
+                const replyMsg = {
+                    id: Date.now().toString(),
+                    sender: 'user',
+                    text: option.label,
+                    icon: option.icon,
+                    timestamp: new Date()
+                };
+                userMessages.push(replyMsg);
+                
+                return { ...prev, [currentElderlyId]: userMessages };
+                });
+
+                if (option.isAlert) {
+                addAlert(currentElderlyId, `「${option.label}」と回答がありました`);
+                }
+            };
+
+            const handleSendText = () => {
+                if (!inputText.trim()) return;
+                const replyMsg = {
+                id: Date.now().toString(),
+                sender: 'user',
+                text: inputText,
+                timestamp: new Date()
+                };
+                setMessages(prev => ({
+                ...prev,
+                [currentElderlyId]: [...(prev[currentElderlyId] || []), replyMsg]
+                }));
+                setInputText('');
+            };
+
+            const handleMicClick = () => {
+                if (isRecording) return;
+                setIsRecording(true);
+                setTimeout(() => {
+                setInputText("いつも通り元気です。");
+                setIsRecording(false);
+                }, 1500);
+            };
+
+            useEffect(() => {
+                if (view === 'elderly') {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                }
+            }, [messages, view, currentElderlyId]);
+
+
+            // ==========================================
+            // コンポーネント: 高齢者画面
+            // ==========================================
+            const ElderlyView = () => {
+                const userMsgs = messages[currentElderlyId] || [];
+
+                return (
+                <div className="flex flex-col h-full bg-[#87A8D0] font-sans relative">
+                    <div className="bg-[#06C755] text-white p-3 shadow-md flex items-center justify-between sticky top-0 z-10">
+                    <div className="flex items-center gap-2">
+                        <IconHeartPulse size={24} />
+                        <h1 className="text-xl font-bold tracking-widest">見守りチャット</h1>
+                    </div>
+                    <select 
+                        value={currentElderlyId} 
+                        onChange={e => setCurrentElderlyId(e.target.value)}
+                        className="bg-green-700 text-white text-sm py-1 px-2 rounded outline-none border-none cursor-pointer"
+                    >
+                        {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-6 custom-scrollbar">
+                    {userMsgs.map(msg => (
+                        <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        {msg.sender === 'system' && (
+                            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mr-3 shadow flex-shrink-0">
+                            <IconStethoscope className="text-[#06C755]" size={28} />
+                            </div>
+                        )}
+                        <div className="flex flex-col max-w-[80%]">
+                            <div className="flex items-end gap-1">
+                            {msg.sender === 'user' && <span className="text-xs text-gray-200 mb-1">{formatTime(msg.timestamp)}</span>}
+                            
+                            <div className={`p-4 rounded-2xl text-xl shadow-sm leading-relaxed ${msg.sender === 'user' ? 'bg-[#06C755] text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none'}`}>
+                                {msg.icon && <span className="mr-2 text-2xl">{msg.icon}</span>}
+                                {msg.text}
+                            </div>
+                            
+                            {msg.sender === 'system' && <span className="text-xs text-gray-200 mb-1">{formatTime(msg.timestamp)}</span>}
+                            </div>
+
+                            {msg.sender === 'system' && msg.options && !msg.replied && (
+                            <div className="mt-3 grid grid-cols-2 gap-3 w-full">
+                                {msg.options.map(opt => (
+                                <button 
+                                    key={opt.value} 
+                                    onClick={() => handleReplyOption(msg.id, opt)}
+                                    className="bg-white border-[3px] border-[#06C755] rounded-2xl p-4 flex flex-col items-center justify-center shadow-md active:bg-[#06C755] active:text-white transition-colors group"
+                                >
+                                    <span className="text-5xl mb-2 group-active:scale-110 transition-transform">{opt.icon}</span>
+                                    <span className="text-[#06C755] font-bold text-xl group-active:text-white">{opt.label}</span>
+                                </button>
+                                ))}
+                            </div>
+                            )}
+                        </div>
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="bg-white p-3 flex items-center gap-3 border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <button 
+                        onClick={handleMicClick} 
+                        className={`p-4 rounded-full transition-colors flex-shrink-0 ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                        <IconMic size={28} />
+                    </button>
+                    <input 
+                        type="text" 
+                        className="flex-1 bg-gray-100 rounded-full px-5 py-4 text-xl outline-none focus:ring-2 focus:ring-[#06C755]" 
+                        placeholder={isRecording ? "音声を認識中..." : "メッセージを入力"}
+                        value={inputText}
+                        onChange={e => setInputText(e.target.value)}
+                        onKeyPress={e => e.key === 'Enter' && handleSendText()}
+                        readOnly={isRecording}
+                    />
+                    <button onClick={handleSendText} className="p-4 bg-[#06C755] rounded-full text-white hover:bg-green-600 flex-shrink-0 shadow">
+                        <IconSend size={28} />
+                    </button>
+                    </div>
+                </div>
+                );
+            };
+
+            // ==========================================
+            // コンポーネント: スタッフ・家族画面
+            // ==========================================
+            const StaffView = () => {
+                return (
+                <div className="flex flex-col md:flex-row h-full bg-gray-50 font-sans">
+                    <div className="w-full md:w-80 bg-white border-r flex flex-col h-1/3 md:h-full flex-shrink-0">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center shadow-sm z-10">
+                        <div className="flex items-center gap-2 font-bold text-gray-700">
+                        <IconUsers size={20} />
+                        <span>利用者一覧</span>
+                        </div>
+                        <button onClick={() => setShowAddUser(true)} className="p-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                        <IconPlus size={20}/>
+                        </button>
+                    </div>
+                    <div className="overflow-y-auto flex-1 divide-y divide-gray-100 custom-scrollbar">
+                        {users.map(u => {
+                        const userMsgs = messages[u.id] || [];
+                        const lastMsg = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1] : null;
+
+                        return (
+                            <div 
+                            key={u.id} 
+                            onClick={() => setSelectedStaffUser(u.id)} 
+                            className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${selectedStaffUser === u.id ? 'bg-blue-50 border-l-4 border-blue-600' : 'border-l-4 border-transparent'}`}
+                            >
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                <IconUser size={24} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                <div className="font-bold text-gray-800">{u.name}</div>
+                                <div className="text-sm text-gray-500 truncate mt-0.5">
+                                    {lastMsg ? (lastMsg.sender === 'system' ? `質問送信済` : `回答: ${lastMsg.text}`) : '履歴なし'}
+                                </div>
+                                </div>
+                            </div>
+                            </div>
+                        );
+                        })}
+                    </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col h-2/3 md:h-full overflow-hidden bg-gray-100">
+                    <div className="p-5 bg-white border-b shadow-sm z-10">
+                        <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                            <IconMessageSquare size={18} />
+                            <span>質問の送信・管理</span>
+                        </h3>
+                        <button onClick={() => setShowAddQuestion(true)} className="text-sm text-blue-600 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100">
+                            新しい質問を作成
+                        </button>
+                        </div>
+                        
+                        <div className="flex gap-2 overflow-x-auto pb-3 custom-scrollbar">
+                        {questions.map(q => (
+                            <button 
+                            key={q.id} 
+                            onClick={() => sendQuestion(selectedStaffUser, q)} 
+                            className="px-4 py-2.5 bg-green-50 border border-green-200 text-green-800 rounded-lg whitespace-nowrap hover:bg-green-100 transition-colors text-sm font-medium flex items-center gap-2 shadow-sm"
+                            >
+                            <IconMessageCircle size={16} className="text-green-600" />
+                            {q.text}
+                            </button>
+                        ))}
+                        </div>
+                        
+                        <div className="mt-2 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
+                        <button onClick={() => sendQuestion('all', questions[0])} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-colors text-sm font-bold">
+                            全員に「体調確認」を一斉送信
+                        </button>
+                        <button onClick={simulateNoReplyAlert} className="px-5 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-red-100 transition-colors">
+                            <IconBell size={16} />
+                            未読アラートテスト
+                        </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 relative custom-scrollbar">
+                        <h4 className="text-center text-sm font-bold text-gray-400 mb-6 sticky top-0">
+                        {users.find(u => u.id === selectedStaffUser)?.name} さんの回答履歴
+                        </h4>
+                        <div className="space-y-4 max-w-2xl mx-auto">
+                        {messages[selectedStaffUser]?.slice().reverse().map(msg => (
+                            <div key={msg.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 items-start">
+                            {msg.sender === 'system' ? (
+                                <div className="w-10 h-10 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1"><IconStethoscope size={20}/></div>
+                            ) : (
+                                <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1"><IconUser size={20}/></div>
+                            )}
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center mb-1.5">
+                                <span className="text-xs font-bold text-gray-500">{msg.sender === 'system' ? 'システムからの質問' : 'ご本人の回答'}</span>
+                                <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
+                                </div>
+                                <div className="text-gray-800 text-base font-medium flex items-center gap-2">
+                                {msg.icon && <span>{msg.icon}</span>}
+                                {msg.text}
+                                </div>
+                            </div>
+                            </div>
+                        ))}
+                        {(!messages[selectedStaffUser] || messages[selectedStaffUser].length === 0) && (
+                            <div className="text-center text-gray-400 py-10 bg-white rounded-xl border border-dashed border-gray-300">
+                            履歴がありません
+                            </div>
+                        )}
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                );
+            };
+
+            // ==========================================
+            // メインのレンダリング
+            // ==========================================
+            return (
+                <div className="h-screen w-full flex flex-col font-sans bg-gray-900 overflow-hidden relative">
+                
+                <div className="h-14 bg-gray-800 text-gray-200 flex items-center justify-between px-4 border-b border-gray-700 flex-shrink-0 z-50 shadow-md">
+                    <div className="font-bold flex items-center gap-2">
+                    <IconHeartPulse size={20} className="text-green-400" />
+                    <span className="hidden sm:inline">健康管理システム・デモ環境</span>
+                    <span className="sm:hidden">デモ</span>
+                    </div>
+                    <div className="flex gap-2">
+                    <button 
+                        onClick={() => setView('elderly')} 
+                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${view === 'elderly' ? 'bg-green-600 text-white shadow' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                        高齢者画面
+                    </button>
+                    <button 
+                        onClick={() => setView('staff')} 
+                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${view === 'staff' ? 'bg-blue-600 text-white shadow' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                        スタッフ画面
+                    </button>
+                    </div>
+                </div>
+
+                {alerts.filter(a => !a.isRead).length > 0 && (
+                    <div className="absolute top-14 left-0 right-0 z-[100] bg-red-600 text-white shadow-2xl animate-pulse">
+                    <div className="max-w-5xl mx-auto p-4 flex justify-between items-start">
+                        <div className="flex gap-3">
+                        <IconBell className="flex-shrink-0 mt-1" size={24} />
+                        <div>
+                            <h4 className="font-bold text-lg mb-1 tracking-wider">緊急・要確認通知</h4>
+                            <div className="space-y-1">
+                            {alerts.filter(a => !a.isRead).map(a => (
+                                <div key={a.id} className="text-sm font-medium bg-red-700 px-3 py-1.5 rounded inline-block mr-2 mb-1">
+                                {users.find(u => u.id === a.userId)?.name}さん: {a.message}
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                        </div>
+                        <button 
+                        onClick={() => setAlerts(alerts.map(a => ({...a, isRead: true})))} 
+                        className="p-2 hover:bg-red-800 rounded-full transition-colors flex-shrink-0"
+                        >
+                        <IconX size={24} />
+                        </button>
+                    </div>
+                    </div>
+                )}
+
+                <div className="flex-1 relative overflow-hidden bg-white">
+                    {view === 'elderly' ? <ElderlyView /> : <StaffView />}
+                </div>
+
+                {toast && (
+                    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl z-[200] font-bold">
+                    {toast}
+                    </div>
+                )}
+
+                {showAddUser && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[150] p-4">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2">
+                        <IconPlus className="text-blue-600" />
+                        新規利用者の追加
+                        </h3>
+                        <input 
+                        type="text" 
+                        value={newUserName} 
+                        onChange={e => setNewUserName(e.target.value)} 
+                        className="w-full border-2 border-gray-200 p-3 rounded-xl mb-6 text-lg focus:border-blue-500 outline-none" 
+                        placeholder="お名前を入力" 
+                        autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                        <button onClick={() => setShowAddUser(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">キャンセル</button>
+                        <button onClick={handleAddUserSubmit} className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md">追加する</button>
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                {showAddQuestion && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[150] p-4">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2">
+                        <IconMessageSquare className="text-green-600" />
+                        新しい質問の作成
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-2">※回答は「はい/いいえ」の2択が自動付与されます。</p>
+                        <textarea 
+                        value={newQuestionText} 
+                        onChange={e => setNewQuestionText(e.target.value)} 
+                        className="w-full border-2 border-gray-200 p-3 rounded-xl mb-6 text-lg focus:border-green-500 outline-none resize-none h-24" 
+                        placeholder="質問内容を入力 (例: 今日はお散歩に行きましたか？)" 
+                        autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                        <button onClick={() => setShowAddQuestion(false)} className="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">キャンセル</button>
+                        <button onClick={handleAddQuestionSubmit} className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md">作成する</button>
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+```
